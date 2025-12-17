@@ -21,7 +21,7 @@ n = size(A, 2);
 if not(exist('uv0', 'var')) || isempty(uv0)
 %    [V,D,W] = eig(full(A)); [~,ind] = min(abs(diag(D))); uv0 = [W(:,ind); D(ind,ind)*V(:,ind)];
 %    fprintf('Computed initial value from eigenvalues of A\n');
-    [V,D,W] = svd(full(A)); uv0 = [V(:,end); D(end,end)*W(:,end)];
+    [V,D,W] = svd(full(A)); uv0 = [D(end,end)*V(:,end); W(:,end)];
     fprintf('Computed initial value from singular values of A\n');
     % uv0 = randn(2*n,1);
 end
