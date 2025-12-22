@@ -5,7 +5,7 @@ function [AplusDelta, Delta, u, v] = nearest_singular_structured_dense_newtonlik
 %
 % P = structure (mn x p)
 
-% uncomment for sanity checks of the formulas
+% uncomment these lines for sanity checks of the formulas
 % checkgradient
 % checkhessian
 
@@ -48,11 +48,12 @@ for k = 1:maxit
 
     if isreal(A) && isreal(u) && isreal(v)
         duv = -minres(matop, rhs, 1e-2, m+n);
+        % duv = -fullmat \ rhs; 'TODO: testing direct solve'
     else
         % since our operation is R-linear, we need to separate out
         % real and imaginary part to treat it like a linear system
         duvreal = -minres(@(x) c2r(matop(r2c(x))), c2r(rhs), 1e-2, 2*(m+n));
-        duv = r2c(duvreal)
+        duv = r2c(duvreal);
     end
 
 
@@ -101,12 +102,15 @@ Delta = reshape(vecDelta, size(A));
 AplusDelta = A + Delta;
 
     function c = r2c(r)
+    % convert a real vector of length 2k [re; im] into re + 1i*im
         c = r(1:end/2) + 1i * r(end/2+1:end);
     end
     function r = c2r(c)
+    % inverse of r2c
         r = [re(c); im(c)];
     end
 
+    % function, gradient, Hessian matvec
     function f = F(u,v)
         vecDelta = P*(P' * kron(conj(v),u));
         f = 1/2*norm(A(:) + vecDelta, 'fro')^2 + beta/4*(norm(v)^2-1)^2 ;
@@ -154,5 +158,15 @@ AplusDelta = A + Delta;
         loglog(epsilon, err, epsilon, epsilon.^3)
         title('Hessian check: are the lines parallel?')
     end
-
+    function M = fullmat
+    % compute the full matrix matop(), useful for debugging Minres
+        if isreal(A) && isreal(u) && isreal(v)
+            M = eye(m+n);
+            for k = 1:(m+n)
+                M(:,k) = matop(M(:,k));
+            end
+        else
+            error('Not implemented');
+        end
+    end
 end
