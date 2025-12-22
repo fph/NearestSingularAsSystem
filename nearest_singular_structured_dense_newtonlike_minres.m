@@ -56,7 +56,7 @@ for k = 1:maxit
     end
 
 
-    fprintf('System solved');
+    fprintf('System solved\n');
 
     if any(isnan(duv))
         fprintf('Singular matrix, cannot improve the solution anymore\n')
@@ -64,8 +64,8 @@ for k = 1:maxit
     end
 
 
-    du = duv(1:n);
-    dv = duv(n+1:end);
+    du = duv(1:m);
+    dv = duv(m+1:end);
 
     % A rudimentary line search
     alpha = 1;
