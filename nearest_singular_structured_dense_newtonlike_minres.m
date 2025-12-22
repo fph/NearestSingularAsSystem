@@ -61,7 +61,7 @@ for k = 1:maxit
 
     if isreal(A) && isreal(u) && isreal(v)
         duv = -minres(matop, rhs, 1e-2, m+n);
-        % duv = -fullmat \ rhs; 'TODO: testing direct solve'
+        % duv = -fullmat \ rhs; cond(fullmat), 'TODO: testing direct solve'
     else
         % since our operation is R-linear, we need to separate out
         % real and imaginary part to treat it like a linear system

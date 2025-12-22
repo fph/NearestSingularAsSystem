@@ -74,4 +74,5 @@ vv = x(degq-d+2:end);
 gg = [polytoep(vv, d); polytoep(-uu, d)] \ [1/sqrt(degq-d+1)*pp;1/sqrt(degp-d+1)*qq];
 
 nearness = norm([conv(gg,sqrt(degq-d+1)*vv)-p; conv(gg,-sqrt(degp-d+1)*uu)-q])
-d
+dist = d
+normdelta = norm(Delta, 'fro')
