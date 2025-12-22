@@ -3,7 +3,8 @@ function [AplusDelta, Delta, u, v] = nearest_singular_structured_dense_newtonlik
 %
 % uv0 is an initial value (optional), a vector with length sum(size(A)).
 %
-% P = structure (mn x p)
+% P = structure (mn x p) or (m x n x p), like the one produced by
+% autobasis() in RiemannOracle
 
 % uncomment these lines for sanity checks of the formulas
 % checkgradient
@@ -12,6 +13,18 @@ function [AplusDelta, Delta, u, v] = nearest_singular_structured_dense_newtonlik
 [m, n] = size(A);
 
 beta = norm(A,'fro');
+
+if not(exist('P')) || isempty(P)
+    % this uses a function from RiemannOracle, which we assume is in the
+    % path
+    P = autobasis(A);
+end
+
+if ndims(P) == 3
+    [mp, np, pp] = size(P);
+    assert(isequal(size(A), [mp,np]));
+    P = reshape(P, [mp*np, pp]);
+end
 
 if not(exist('uv0', 'var')) || isempty(uv0)
 %    [V,D,W] = eig(full(A)); [~,ind] = min(abs(diag(D))); uv0 = [W(:,ind); D(ind,ind)*V(:,ind)];
@@ -159,11 +172,11 @@ AplusDelta = A + Delta;
         title('Hessian check: are the lines parallel?')
     end
     function M = fullmat
-    % compute the full matrix matop(), useful for debugging Minres
+    % compute the full matrix from matop(); useful for debugging Minres
         if isreal(A) && isreal(u) && isreal(v)
             M = eye(m+n);
-            for k = 1:(m+n)
-                M(:,k) = matop(M(:,k));
+            for s = 1:(m+n)
+                M(:,s) = matop(M(:,s));
             end
         else
             error('Not implemented');

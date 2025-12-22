@@ -32,8 +32,6 @@ fake_q = 2*degp+1 : 2*degp+degq+1;
 fake_A = [polytoep(fake_p, degq-d) ...
      polytoep(fake_q, degp-d)];
 P = autobasis(fake_A);
-[m, n, pdim] = size(P);
-P = reshape(P, [m*n, pdim]);
 
 % now the real matrix A, scaled so that
 % norm(Delta)_F^2 = norm(p-deltap)^2 + norm(q-deltaq)^2
