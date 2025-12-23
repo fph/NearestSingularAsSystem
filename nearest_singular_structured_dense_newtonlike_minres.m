@@ -1,4 +1,12 @@
-function [AplusDelta, Delta, u, v] = nearest_singular_structured_dense_newtonlike_minres(A, P, uv0)
+function [AplusDelta, Delta, u, v] = nearest_singular_structured_dense_newtonlike_minres(A, P, uv0, opts)
+arguments
+    A {mustBeNumeric}
+    P {mustBeNumericOrLogical} = []
+    uv0 {mustBeNumeric} = []
+    opts.DirectSolve logical = false
+    opts.maxit {mustBeInteger} = 10
+    opts.tol double = 0
+end
 % Computes the nearest singular matrix to A with a specified structure.
 %
 % uv0 is an initial value (optional), a vector with length sum(size(A)).
@@ -14,7 +22,7 @@ function [AplusDelta, Delta, u, v] = nearest_singular_structured_dense_newtonlik
 
 beta = norm(A,'fro');
 
-if not(exist('P')) || isempty(P)
+if isempty(P)
     % this uses a function from RiemannOracle, which we assume is in the
     % path
     P = autobasis(A);
@@ -26,7 +34,7 @@ if ndims(P) == 3
     P = reshape(P, [mp*np, pp]);
 end
 
-if not(exist('uv0', 'var')) || isempty(uv0)
+if isempty(uv0)
 %    [V,D,W] = eig(full(A)); [~,ind] = min(abs(diag(D))); uv0 = [W(:,ind); D(ind,ind)*V(:,ind)];
 %    fprintf('Computed initial value from eigenvalues of A\n');
     % [V,D,W] = svd(full(A)); uv0 = [V(:,end); D(end,end)*W(:,end)];
@@ -39,14 +47,11 @@ end
 u = uv0(1:m);
 v = uv0(m+1:end);
 
-
-maxit = 10;
-
-for k = 1:maxit
+for k = 1:opts.maxit
     matop = @(dudv) H(u, v, dudv(1:m), dudv(m+1:end));
     rhs = G(u,v);
 
-    if norm(rhs) / norm(A,1) < 1e-14
+    if norm(rhs) / norm(A,1) < opts.tol
         fprintf('norm(rhs)=%g, frobnorm(Delta)=%g\n', norm(rhs), norm(Delta,'fro'));
         break
     end
@@ -60,13 +65,23 @@ for k = 1:maxit
     end
 
     if isreal(A) && isreal(u) && isreal(v)
-        duv = -minres(matop, rhs, 1e-2, m+n);
-        % duv = -fullmat \ rhs; cond(fullmat), 'TODO: testing direct solve'
+        % 
+        %cond(fullmat)
+        if opts.DirectSolve
+            % warning: very slow
+            duv = -fullmat \ rhs; condition_number =cond(fullmat)            
+        else
+            duv = -minres(matop, rhs, 1e-2, m+n);
+        end
     else
         % since our operation is R-linear, we need to separate out
         % real and imaginary part to treat it like a linear system
-        duvreal = -minres(@(x) c2r(matop(r2c(x))), c2r(rhs), 1e-2, 2*(m+n));
-        duv = r2c(duvreal);
+        if opts.DirectSolve
+            error('Not implemented')
+        else
+            duvreal = -minres(@(x) c2r(matop(r2c(x))), c2r(rhs), 1e-2, 2*(m+n));
+            duv = r2c(duvreal);
+        end
     end
 
 
@@ -90,8 +105,9 @@ for k = 1:maxit
         vnew = vnew/nrm;
         unew = unew*nrm;
         rhsnew = G(unew, vnew);
-
-        if norm(rhsnew) < norm(rhs)
+        normrhs = norm(rhs);
+        % 'TODO: testing alpha always=1', normrhs=inf
+        if norm(rhsnew) < normrhs;
             fprintf('line search: accepted alpha=%g; stopping=%g, norm(rhs)=%g\n', alpha,norm(rhsnew),norm(rhs));
             u = unew;
             v = vnew;
@@ -106,7 +122,7 @@ for k = 1:maxit
 
 end
 
-if k == maxit
+if k == opts.maxit
     fprintf('Maximum number of iterations reached\n')
 end
 
@@ -120,7 +136,7 @@ AplusDelta = A + Delta;
     end
     function r = c2r(c)
     % inverse of r2c
-        r = [re(c); im(c)];
+        r = [real(c); imag(c)];
     end
 
     % function, gradient, Hessian matvec

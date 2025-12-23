@@ -1,11 +1,11 @@
+function AplusDelta = example_zeng_newtonlike(d)
 %
 % Boito 8.1.1 / Zeng Test 2, in "Toward the best algorithm for 
 % approximate GCD of univariate polynomials", Kosaku Nagasaka,
 % https://doi.org/10.1016/j.jsc.2019.08.004
 %
 
-% sought gcd degree
-d = input('Degree of sought gcd? ');
+% d should be in 4--9
 
 % create polynomials from the example
 p = 1;
@@ -41,7 +41,7 @@ A = [1/sqrt(degq-d+1) * polytoep(p, degq-d) ... % Sylvester matrix
 alpha = [p;q];
 %problem = nearest_singular_structured_dense(P, scaling*alpha, true);
 %[x, cost, info, results] = penalty_method(problem, [], options);
-[AplusDelta, Delta, ~, ~] = nearest_singular_structured_dense_newtonlike_minres(A, P);
+[AplusDelta, Delta, ~, x] = nearest_singular_structured_dense_newtonlike_minres(A, P, DirectSolve=true);
 
 Apert = AplusDelta;
 
@@ -55,7 +55,8 @@ vv0 = x(degq-d+2:end);
 x0 = x;
 
 if nullity > 1
-    warning('nullity > 1, we need to remove spurious factors from the cofactors.');
+    %warning('nullity > 1, we need to remove spurious factors from the cofactors.');
+    error('nullity > 1, we need to remove spurious factors from the cofactors.');
     d = d + nullity - 1;
 end
 
