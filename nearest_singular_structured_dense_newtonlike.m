@@ -1,4 +1,4 @@
-function [AplusDelta, Delta, u, v] = nearest_singular_structured_dense_newtonlike_minres(A, P, uv0, opts)
+function [AplusDelta, Delta, u, v] = nearest_singular_structured_dense_newtonlike(A, P, uv0, opts)
 arguments
     A {mustBeNumeric}
     P {mustBeNumericOrLogical} = []
@@ -6,6 +6,8 @@ arguments
     opts.DirectSolve logical = false
     opts.maxit {mustBeInteger} = 10
     opts.tol double = 0
+    opts.beta double = norm(A, 'fro')  % this seems a reasonably-scaled choice
+    opts.minres_tolerance = 1e-2;
 end
 % Computes the nearest singular matrix to A with a specified structure.
 %
@@ -20,7 +22,7 @@ end
 
 [m, n] = size(A);
 
-beta = norm(A,'fro');
+beta = opts.beta;
 
 if isempty(P)
     % this uses a function from RiemannOracle, which we assume is in the
@@ -71,7 +73,7 @@ for k = 1:opts.maxit
             % warning: very slow
             duv = -fullmat \ rhs; condition_number =cond(fullmat)            
         else
-            duv = -minres(matop, rhs, 1e-2, m+n);
+            duv = -minres(matop, rhs, opts.minres_tolerance, m+n);
         end
     else
         % since our operation is R-linear, we need to separate out
