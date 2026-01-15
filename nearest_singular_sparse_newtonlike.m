@@ -4,16 +4,20 @@ arguments
     P {mustBeNumericOrLogical} = []
     uv0 {mustBeNumeric} = []
     opts.DirectSolve logical = false
+    opts.DirectSvd logical = false
+    opts.NInitialValues = 1
     opts.maxit {mustBeInteger} = 10
     opts.tol double = 0
     opts.beta double = norm(A, 'fro')  % this seems a reasonably-scaled choice
     opts.minres_tolerance = 1e-2;
 end
 
-% Computes the nearest singular matrix to A with a specified sparsity
+% Computes the nearest singular matrix to A (m x n) with a specified sparsity
 % pattern.
 %
-% uv0 is an initial value (optional), a vector with length sum(size(A)).
+% uv0 contains initial values in the format [u;v] ((m+n) x 1)
+% If uv0 contains multiple columns, the method is run with several initial
+% values and the best Delta is returned.
 %
 % P = nonzero pattern of the permutation (default=nonzero pattern of A)
 %
@@ -29,83 +33,108 @@ if isempty(P)
 end
 
 if isempty(uv0)
-    %    [V,D,W] = eig(full(A)); [~,ind] = min(abs(diag(D))); uv0 = [W(:,ind); D(ind,ind)*V(:,ind)];
-    %    fprintf('Computed initial value from eigenvalues of A\n');
-    [V,D,W] = svd(full(A)); uv0 = [D(end,end)*V(:,end); W(:,end)];
-    fprintf('Computed initial value from singular values of A\n');
-    % uv0 = randn(2*n,1);
+    if opts.DirectSvd
+        [V,D,W] = svd(full(A));
+        niv = opts.NInitialValues;
+        uv0 = [V(:,end-niv:end)*D(end-niv:end,end-niv:end); W(:,end-niv:end)];        
+    else
+        [V,D,W] = svds(A, opts.NInitialValues, 'smallest');
+        uv0 = [V*D; W];
+    end
+    fprintf('Computed initial values from singular values of A\n');
 end
 
-u = uv0(1:n);
-v = uv0(n+1:end);
+bestdist = inf;
+bestu = [];
+bestv = [];
 
-for k = 1:opts.maxit
-    % assembling linear system
+for iv = 1:size(uv0, 2)
 
-    k1 = P * (v .* conj(v));
-    k2 = P' * (u .* conj(u));
-
-    Delta = u .* (v' .* P);
-    normv2m1 = v'*v-1;
-
-    rhs = [k1.*u + A*v; A'*u + k2.*v + beta*normv2m1*v];
-    if norm(rhs) / norm(A,1) < 1e-14
-        fprintf('norm(rhs)=%g, frobnorm(Delta)=%g\n', norm(rhs), norm(Delta,'fro'));
-        break
+    if size(uv0, 2) > 1
+        fprintf('# Trying initial value #%d\n', iv);
     end
 
+    u = uv0(1:m, iv);
+    v = uv0(m+1:end, iv);
 
+    for k = 1:opts.maxit
+        % assembling linear system
 
-    fprintf('*** k = %d \n', k);
-    if opts.DirectSolve
-        fullmat = [diag(k1) A+2*Delta; (A+2*Delta)' diag(k2)+beta*(v*v'*2+normv2m1*eye(size(K2)))];
-        duv = -fullmat \ rhs;
-    else
-        Delta = u .* (v' .* P);
-        % TODO: avoid assembling Delta here
-        matop = @(uv) [
-        k1.*uv(1:m) + (A+2*Delta)*uv(m+1:end);
-        (A+2*Delta)'*uv(1:m) + k2.*uv(m+1:end) + beta*(v*(v'*uv(m+1:end))*2 + normv2m1*uv(m+1:end));
-        ];
-        duv = -minres(matop, rhs, opts.minres_tolerance, m+n);
-    end
+        k1 = P * (v .* conj(v));
+        k2 = P' * (u .* conj(u));
 
-    if any(isnan(duv))
-        fprintf('Singular matrix, cannot improve the solution anymore\n')
-        break
-    end
+        normv2m1 = v'*v-1;
 
-    du = duv(1:m);
-    dv = duv(m+1:end);
-
-    % A rudimentary line search
-
-    alpha = 1;
-    while(alpha > 1e-10)
-        unew = u + alpha*du;
-        vnew = v + alpha*dv;
-        nrm = norm(vnew);
-        vnew = vnew/nrm;
-        unew = unew*nrm;
-        k1new = P * (vnew .* conj(vnew));
-        k2new = P' * (unew .* conj(unew));
-        rhsnew = [k1new.*unew + A*vnew; A'*unew + k2new.*vnew];
-        if norm(rhsnew) < norm(rhs)
-            fprintf('line search: accepted alpha=%g; stopping=%g, norm(rhs)=%g\n', alpha,norm(rhsnew),norm(rhs));
-            u = unew;
-            v = vnew;
+        rhs = [k1.*u + A*v; A'*u + k2.*v + beta*normv2m1*v];
+        if norm(rhs) / norm(A,1) < 1e-14
+            fprintf('norm(rhs)=%g, frobnorm(Delta)=%g\n', norm(rhs), norm(Delta,'fro'));
             break
         end
-        %        fprintf('line search: rejected alpha=%g; stopping=%g, norm(rhs)=%g\n', alpha,norm(rhsnew),norm(rhs));
-        alpha = alpha / 2;
+
+        fprintf('## k = %d \n', k);
+        if opts.DirectSolve
+            Delta = u .* (v' .* P);
+            fullmat = [diag(k1) A+2*Delta; (A+2*Delta)' diag(k2)+beta*(v*v'*2+normv2m1*eye(size(K2)))];
+            duv = -fullmat \ rhs;
+        else
+            Delta = u .* (v' .* P);
+            % TODO: avoid assembling Delta here
+            matop = @(uv) [
+                k1.*uv(1:m) + (A+2*Delta)*uv(m+1:end);
+                (A+2*Delta)'*uv(1:m) + k2.*uv(m+1:end) + beta*(v*(v'*uv(m+1:end))*2 + normv2m1*uv(m+1:end));
+                ];
+            duv = -minres(matop, rhs, opts.minres_tolerance, m+n);
+        end
+
+        if any(isnan(duv))
+            fprintf('Singular matrix, cannot improve the solution anymore\n')
+            break
+        end
+
+        du = duv(1:m);
+        dv = duv(m+1:end);
+
+        % A rudimentary line search
+
+        alpha = 1;
+        while(alpha > 1e-10)
+            unew = u + alpha*du;
+            vnew = v + alpha*dv;
+            nrm = norm(vnew);
+            vnew = vnew/nrm;
+            unew = unew*nrm;
+            k1new = P * (vnew .* conj(vnew));
+            k2new = P' * (unew .* conj(unew));
+            rhsnew = [k1new.*unew + A*vnew; A'*unew + k2new.*vnew];
+            if norm(rhsnew) < norm(rhs)
+                fprintf('line search: accepted alpha=%g; stopping=%g, norm(rhs)=%g\n', alpha,norm(rhsnew),norm(rhs));
+                u = unew;
+                v = vnew;
+                break
+            end
+            %        fprintf('line search: rejected alpha=%g; stopping=%g, norm(rhs)=%g\n', alpha,norm(rhsnew),norm(rhs));
+            alpha = alpha / 2;
+        end
+        if alpha <= 1e-10
+            fprintf('Line search failed, cannot improve the solution anymore\n')
+        end
     end
-    if alpha <= 1e-10
-        fprintf('Line search failed, cannot improve the solution anymore\n')
+
+    if k == opts.maxit
+        fprintf('Maximum number of iterations reached\n')
     end
+
+    Delta = u .* (v' .* P);
+    normDelta = norm(Delta, 'fro')
+    if normDelta < bestdist
+        bestdist = normDelta;
+        bestu = u;
+        bestv = v;
+    end
+
 end
 
-if k == opts.maxit
-    fprintf('Maximum number of iterations reached\n')
-end
+u = bestu;
+v = bestv;
 Delta = u .* (v' .* P);
 AplusDelta = A + Delta;
