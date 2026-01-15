@@ -36,7 +36,7 @@ if isempty(uv0)
     if opts.DirectSvd
         [V,D,W] = svd(full(A));
         niv = opts.NInitialValues;
-        uv0 = [V(:,end-niv:end)*D(end-niv:end,end-niv:end); W(:,end-niv:end)];        
+        uv0 = [V(:,end-niv+1:end)*D(end-niv+1:end,end-niv+1:end); W(:,end-niv+1:end)];
     else
         [V,D,W] = svds(A, opts.NInitialValues, 'smallest');
         uv0 = [V*D; W];
@@ -67,21 +67,19 @@ for iv = 1:size(uv0, 2)
 
         rhs = [k1.*u + A*v; A'*u + k2.*v + beta*normv2m1*v];
         if norm(rhs) / norm(A,1) < 1e-14
-            fprintf('norm(rhs)=%g, frobnorm(Delta)=%g\n', norm(rhs), norm(Delta,'fro'));
+            fprintf('norm(rhs)=%g\n', norm(rhs));
             break
         end
 
         fprintf('## k = %d \n', k);
         if opts.DirectSolve
             Delta = u .* (v' .* P);
-            fullmat = [diag(k1) A+2*Delta; (A+2*Delta)' diag(k2)+beta*(v*v'*2+normv2m1*eye(size(K2)))];
+            fullmat = [diag(k1) A+2*Delta; (A+2*Delta)' diag(k2)+beta*(v*v'*2+normv2m1*eye(m))];
             duv = -fullmat \ rhs;
         else
-            Delta = u .* (v' .* P);
-            % TODO: avoid assembling Delta here
             matop = @(uv) [
-                k1.*uv(1:m) + (A+2*Delta)*uv(m+1:end);
-                (A+2*Delta)'*uv(1:m) + k2.*uv(m+1:end) + beta*(v*(v'*uv(m+1:end))*2 + normv2m1*uv(m+1:end));
+                k1.*uv(1:m) +                                         A*uv(m+1:end) + (P * (uv(m+1:end) .* conj(v))) .* (2*u);
+                A'*uv(1:m) + (P' * (uv(1:m) .* conj(u))) .* (2*v) +   k2.*uv(m+1:end) + beta*(v*(v'*uv(m+1:end))*2 + normv2m1*uv(m+1:end));
                 ];
             duv = -minres(matop, rhs, opts.minres_tolerance, m+n);
         end
@@ -124,8 +122,9 @@ for iv = 1:size(uv0, 2)
         fprintf('Maximum number of iterations reached\n')
     end
 
-    Delta = u .* (v' .* P);
-    normDelta = norm(Delta, 'fro')
+    % equivalent to: Delta = u .* (v' .* P); normDelta = norm(Delta, 'fro')
+    normDelta = sqrt((u.*conj(u))' * (P * (v.*conj(v))))
+    
     if normDelta < bestdist
         bestdist = normDelta;
         bestu = u;

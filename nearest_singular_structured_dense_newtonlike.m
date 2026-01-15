@@ -51,7 +51,7 @@ if isempty(uv0)
     if opts.DirectSvd
         [V,D,W] = svd(full(A));
         niv = opts.NInitialValues;
-        uv0 = [V(:,end-niv:end)*D(end-niv:end,end-niv:end); W(:,end-niv:end)];        
+        uv0 = [V(:,end-niv+1:end)*D(end-niv+1:end,end-niv+1:end); W(:,end-niv+1:end)];
     else
         [V,D,W] = svds(A, opts.NInitialValues, 'smallest');
         uv0 = [V*D; W];
