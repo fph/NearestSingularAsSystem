@@ -20,6 +20,7 @@ end
 %
 % P = structure (mn x p) or (m x n x p), like the one produced by
 % autobasis() in RiemannOracle
+%
 % if opts.checkgradhess = true, checks gradient and hessian instead
 % of computing things.
 
@@ -108,7 +109,6 @@ for iv = 1:size(uv0, 2)
                 duv = r2c(duvreal);
             end
         end
-
 
         fprintf('System solved\n');
 
@@ -210,7 +210,7 @@ AplusDelta = A + Delta;
             err(i) = abs(F(u+epsilon(i)*du,v+epsilon(i)*dv) - F(u,v) - epsilon(i)*real(G(u,v)' * [du;dv]));
         end
         loglog(epsilon, err, epsilon, epsilon.^2)
-        title('Gradient check: are the lines parallel?')
+        title('Gradient check: the lines must be parallel')
     end
     function checkhessian
         [m,n] = size(A);
@@ -224,7 +224,7 @@ AplusDelta = A + Delta;
             err(i) = abs(F(u+epsilon(i)*du,v+epsilon(i)*dv) - F(u,v) - epsilon(i)*real(G(u,v)' * [du;dv]) - 0.5*epsilon(i)^2*real([du;dv]'*H(u,v,du,dv)));
         end
         loglog(epsilon, err, epsilon, epsilon.^3)
-        title('Hessian check: are the lines parallel?')
+        title('Hessian check: the lines must be parallel')
     end
     function M = fullmat
         % compute the full matrix from matop(); useful for debugging Minres
