@@ -1,7 +1,8 @@
-function [AplusDelta, Delta u v] = nearest_singular_sparse_newtonlike(A, P, uv0)
+function [AplusDelta, Delta u v] = nearest_singular_sparse_newtonlike_unit_v(A, P, uv0)
 %
 % Computes the nearest singular matrix to A with a specified sparsity
 % pattern.
+% The norm of the vector v is chosen to be equal to one.
 %
 % uv0 is an initial value (optional), a vector with length sum(size(A)).
 %
@@ -20,7 +21,7 @@ n = size(A, 2);
 if not(exist('uv0', 'var')) || isempty(uv0)
 %    [V,D,W] = eig(full(A)); [~,ind] = min(abs(diag(D))); uv0 = [W(:,ind); D(ind,ind)*V(:,ind)];
 %    fprintf('Computed initial value from eigenvalues of A\n');
-    [V,D,W] = svd(full(A)); uv0 = [V(:,end); D(end,end)*W(:,end)];
+    [V,D,W] = svd(full(A)); uv0 = [D(end,end)*V(:,end); W(:,end)];
     fprintf('Computed initial value from singular values of A\n');
     % uv0 = randn(2*n,1);
 end
@@ -35,14 +36,14 @@ for k = 1:50
     K2 = diag(P' * (u .* conj(u)));
 
     Delta = u .* (v' .* P);
-    normu2m1 = u'*u-1;
+    normv2m1 = v'*v-1;
 
-    rhs = [K1+beta*(normu2m1)*eye(size(K1)) A; A' K2]*[u;v];
+    rhs = [K1 A; A' K2+beta*(normv2m1)*eye(size(K2))]*[u;v];
     if norm(rhs) / norm(A,1) < 1e-14
         fprintf('norm(rhs)=%g, frobnorm(Delta)=%g\n', norm(rhs), norm(Delta,'fro'));
         break
     end
-    mat = [K1+beta*(u*u'*2+normu2m1*eye(size(K1))) A+2*Delta; (A+2*Delta)' K2];
+    mat = [K1 A+2*Delta; (A+2*Delta)' K2+beta*(v*v'*2+normv2m1*eye(size(K2)))];
 
     fprintf('*** k = %d \n', k);
     % u
@@ -71,9 +72,9 @@ for k = 1:50
     while(alpha > 1e-10)
         unew = u + alpha*du;
         vnew = v + alpha*dv;
-        nrm = norm(unew);
-        unew = unew/nrm;
-        vnew = vnew*nrm;
+        nrm = norm(vnew);
+        vnew = vnew/nrm;
+        unew = unew*nrm;
         K1new = diag(P * (vnew .* conj(vnew)));
         K2new = diag(P' * (unew .* conj(unew)));
         rhsnew = [K1new A; A' K2new]*[unew;vnew];
