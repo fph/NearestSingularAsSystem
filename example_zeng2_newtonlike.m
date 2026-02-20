@@ -41,7 +41,7 @@ A = [1/sqrt(degq-d+1) * polytoep(p, degq-d) ... % Sylvester matrix
 alpha = [p;q];
 %problem = nearest_singular_structured_dense(P, scaling*alpha, true);
 %[x, cost, info, results] = penalty_method(problem, [], options);
-[AplusDelta, Delta, ~, x] = nearest_singular_structured_dense_newtonlike_minres(A, P, DirectSolve=true);
+[AplusDelta, Delta, ~, x] = nearest_singular_structured_dense_newtonlike(A, P, DirectSolve=true);
 
 Apert = AplusDelta;
 
