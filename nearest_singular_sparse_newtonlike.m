@@ -10,9 +10,10 @@ arguments
     opts.tol double = 0
     opts.beta double = norm(A, 'fro')  % this seems a reasonably-scaled choice
     opts.minres_tolerance = 1e-2;
+    opts.renormalization = true;
 end
 
-% Computes the nearest singular matrix to A (m x n) with a specified sparsity
+% Compute the nearest singular matrix to A (m x n) with a specified sparsity
 % pattern.
 %
 % uv0 contains initial values in the format [u;v] ((m+n) x 1)
@@ -33,16 +34,26 @@ if isempty(P)
 end
 
 if isempty(uv0)
+    niv = opts.NInitialValues;
     if opts.DirectSvd
         [V,D,W] = svd(full(A));
-        niv = opts.NInitialValues;
-        uv0 = [V(:,end-niv+1:end)*D(end-niv+1:end,end-niv+1:end); W(:,end-niv+1:end)];
     else
         [V,D,W] = svds(A, opts.NInitialValues, 'smallest');
-        uv0 = [V*D; W];
+    end
+    if opts.renormalization
+        % renormalized initial values
+        uv0 = nan(m+n, niv);
+        for k = 1:niv
+            u = V(:, end-niv+k); sigma = D(end-niv+k, end-niv+k); v = W(:,end-niv+k);
+            frobnormdelta_squared = (u.*conj(u))' * (P * (v.*conj(v)));
+            uv0(:,k) = [-u * sigma / frobnormdelta_squared; v];
+        end
+    else
+        uv0 = [V(:,end-niv+1:end)*D(end-niv+1:end,end-niv+1:end); W(:,end-niv+1:end)];
     end
     fprintf('Computed initial values from singular values of A\n');
 end
+
 
 bestdist = inf;
 bestu = [];
@@ -56,6 +67,19 @@ for iv = 1:size(uv0, 2)
 
     u = uv0(1:m, iv);
     v = uv0(m+1:end, iv);
+
+    % renormalization
+    if opts.renormalization
+        % sigma0 = norm(u);
+        u = u / norm(u);
+        v = v / norm(v);
+        sigma0 = u'*A*v;
+        %G = P .* u .* v';
+        %u = u * sigma0 / norm(G, 'fro');
+        frobnormdelta_squared = (u.*conj(u))' * (P * (v.*conj(v)));
+        u = -u * sigma0 / frobnormdelta_squared;
+    end
+    % min(svd(full(A+P .* (u*v'))))
 
     for k = 1:opts.maxit
         % assembling linear system
@@ -73,7 +97,7 @@ for iv = 1:size(uv0, 2)
 
         fprintf('## k = %d \n', k);
         if opts.DirectSolve
-            Delta = u .* (v' .* P);
+            Delta = P .* u .* v';
             fullmat = [diag(k1) A+2*Delta; (A+2*Delta)' diag(k2)+beta*(v*v'*2+normv2m1*eye(m))];
             duv = -fullmat \ rhs;
         else
@@ -135,5 +159,5 @@ end
 
 u = bestu;
 v = bestv;
-Delta = u .* (v' .* P);
+Delta = P .* u .* v';
 AplusDelta = A + Delta;
