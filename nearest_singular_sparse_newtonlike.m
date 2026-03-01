@@ -68,18 +68,7 @@ for iv = 1:size(uv0, 2)
     u = uv0(1:m, iv);
     v = uv0(m+1:end, iv);
 
-    % renormalization
-    if opts.renormalization
-        % sigma0 = norm(u);
-        u = u / norm(u);
-        v = v / norm(v);
-        sigma0 = u'*A*v;
-        %G = P .* u .* v';
-        %u = u * sigma0 / norm(G, 'fro');
-        frobnormdelta_squared = (u.*conj(u))' * (P * (v.*conj(v)));
-        u = -u * sigma0 / frobnormdelta_squared;
-    end
-    % min(svd(full(A+P .* (u*v'))))
+    min(svd(full(A+P .* (u*v'))))
 
     for k = 1:opts.maxit
         % assembling linear system

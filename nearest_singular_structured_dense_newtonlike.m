@@ -10,6 +10,7 @@ arguments
     opts.tol double = 0
     opts.beta double = norm(A, 'fro')  % this seems a reasonably-scaled choice
     opts.minres_tolerance = 1e-2;
+    opts.renormalization = true;
     opts.checkgradhess logical = false
 end
 % Compute the nearest singular matrix to A with a specified structure.
@@ -49,13 +50,23 @@ if opts.checkgradhess
 end
 
 if isempty(uv0)
+    niv = opts.NInitialValues;
     if opts.DirectSvd
         [V,D,W] = svd(full(A));
-        niv = opts.NInitialValues;
-        uv0 = [V(:,end-niv+1:end)*D(end-niv+1:end,end-niv+1:end); W(:,end-niv+1:end)];
     else
         [V,D,W] = svds(A, opts.NInitialValues, 'smallest');
-        uv0 = [V*D; W];
+    end
+    if opts.renormalization
+        % renormalized initial values
+        uv0 = nan(m+n, niv);
+        for k = 1:niv
+            u = V(:, end-niv+k); sigma = D(end-niv+k, end-niv+k); v = W(:,end-niv+k);
+            vecGdelta = (P' * kron(conj(v),u)); % the projection is vec(G) = P*P'*vec(u*v'), but we can ignore the outer P if we only want the norm
+            frobnormdelta_squared = norm(vecGdelta)^2;
+            uv0(:,k) = [-u * sigma / frobnormdelta_squared; v];
+        end
+    else
+        uv0 = [V(:,end-niv+1:end)*D(end-niv+1:end,end-niv+1:end); W(:,end-niv+1:end)];
     end
     fprintf('Computed initial values from singular values of A\n');
 end
@@ -71,6 +82,10 @@ for iv = 1:size(uv0, 2)
     end
     u = uv0(1:m, iv);
     v = uv0(m+1:end, iv);
+
+%    vecDelta = P*(P' * kron(conj(v),u));
+%    Delta = reshape(vecDelta, size(A));
+%    min(svd(full(A+Delta)))
 
 
     for k = 1:opts.maxit
