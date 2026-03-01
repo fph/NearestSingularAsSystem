@@ -3,8 +3,8 @@ arguments
     A {mustBeNumeric}
     P {mustBeNumericOrLogical} = []
     uv0 {mustBeNumeric} = []
-    opts.DirectSolve logical = false
-    opts.DirectSvd logical = false
+    opts.DirectSolve logical = (length(A)<500)
+    opts.DirectSvd logical = (length(A)<500)
     opts.NInitialValues = 1
     opts.maxit {mustBeInteger} = 10
     opts.tol double = 0
