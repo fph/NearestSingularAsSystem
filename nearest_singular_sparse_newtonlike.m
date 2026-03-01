@@ -1,7 +1,7 @@
 function [AplusDelta, Delta u v] = nearest_singular_sparse_newtonlike(A, P, uv0, opts)
 arguments
-    A {mustBeNumeric}
-    P {mustBeNumericOrLogical} = []
+    A {mustBeNumeric}                % sparse matrix
+    P {mustBeNumericOrLogical} = []  % sparsity pattern
     uv0 {mustBeNumeric} = []
     opts.DirectSolve logical = (length(A)<500)
     opts.DirectSvd logical = (length(A)<500)
@@ -68,7 +68,7 @@ for iv = 1:size(uv0, 2)
     u = uv0(1:m, iv);
     v = uv0(m+1:end, iv);
 
-    min(svd(full(A+P .* (u*v'))))
+    % min(svd(full(A+P .* (u*v'))))
 
     for k = 1:opts.maxit
         % assembling linear system

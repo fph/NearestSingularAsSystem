@@ -3,8 +3,8 @@ arguments
     A {mustBeNumeric}
     P {mustBeNumericOrLogical} = []
     uv0 {mustBeNumeric} = []
-    opts.DirectSolve logical = false
-    opts.DirectSvd logical = false
+    opts.DirectSolve logical = (length(A)<500)
+    opts.DirectSvd logical = (length(A)<500)
     opts.NInitialValues = 1
     opts.maxit {mustBeInteger} = 10
     opts.tol double = 0
@@ -110,7 +110,7 @@ for iv = 1:size(uv0, 2)
             %cond(fullmat)
             if opts.DirectSolve
                 % warning: very slow
-                duv = -fullmat \ rhs; condition_number =cond(fullmat)
+                duv = -fullmat \ rhs; % condition_number =cond(fullmat)
             else
                 duv = -minres(matop, rhs, opts.minres_tolerance, m+n);
             end
