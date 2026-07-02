@@ -111,7 +111,7 @@ for iv = 1:size(uv0, 2)
         du = duv(1:m);
         dv = duv(m+1:end);
 
-        % A rudimentary line search
+        % Armijo line search
 
         alpha = opts.alpha0;
         while true

@@ -7,11 +7,14 @@ arguments
     opts.DirectSvd logical = (length(A)<500)
     opts.NInitialValues = 1
     opts.maxit {mustBeInteger} = 10
-    opts.tol double = 0
+    opts.tol double = 1e-14
     opts.beta double = norm(A, 'fro')  % this seems a reasonably-scaled choice
     opts.minres_tolerance = 1e-2;
     opts.renormalization = true;
     opts.checkgradhess logical = false
+    opts.armijo_c = 1e-4;
+    opts.alpha0 = 1;
+    opts.alpha_decrease = 0.5;
 end
 % Compute the nearest singular matrix to A with a specified structure.
 %
@@ -89,18 +92,18 @@ for iv = 1:size(uv0, 2)
 
 
     for k = 1:opts.maxit
-        matop = @(dudv) H(u, v, dudv(1:m), dudv(m+1:end));
-        rhs = G(u,v);
+        Hbetaop = @(dudv) H(u, v, dudv(1:m), dudv(m+1:end));
+        Gbeta = G(u,v);
 
-        if norm(rhs) / norm(A,1) < opts.tol
-            fprintf('norm(rhs)=%g, frobnorm(Delta)=%g\n', norm(rhs), norm(Delta,'fro'));
+        if norm(Gbeta) / norm(A,1) < opts.tol
+            fprintf('norm(rhs)=%g, frobnorm(Delta)=%g\n', norm(Gbeta), norm(Delta,'fro'));
             break
         end
 
 
         fprintf('*** k = %d \n', k);
 
-        if norm(rhs) == 0
+        if norm(Gbeta) == 0
             fprintf('System already solved exactly, cannot improve the solution anymore\n')
             break
         end
@@ -110,9 +113,12 @@ for iv = 1:size(uv0, 2)
             %cond(fullmat)
             if opts.DirectSolve
                 % warning: very slow
-                duv = -fullmat \ rhs; % condition_number =cond(fullmat)
+                Hbeta = fullmat;
+                duv = -Hbeta \ Gbeta; % condition_number =cond(fullmat)
+                HtG = Hbeta' * Gbeta;
             else
-                duv = -minres(matop, rhs, opts.minres_tolerance, m+n);
+                HtG = Hbetaop(Gbeta); % H is symmetric, so we do not need to transpose
+                duv = -minres(Hbetaop, Gbeta, opts.minres_tolerance, m+n);
             end
         else
             % since our operation is R-linear, we need to separate out
@@ -120,7 +126,7 @@ for iv = 1:size(uv0, 2)
             if opts.DirectSolve
                 error('Not implemented')
             else
-                duvreal = -minres(@(x) c2r(matop(r2c(x))), c2r(rhs), 1e-2, 2*(m+n));
+                duvreal = -minres(@(x) c2r(Hbetaop(r2c(x))), c2r(Gbeta), 1e-2, 2*(m+n));
                 duv = r2c(duvreal);
             end
         end
@@ -136,29 +142,31 @@ for iv = 1:size(uv0, 2)
         du = duv(1:m);
         dv = duv(m+1:end);
 
-        % A rudimentary line search
-        alpha = 1;
-        while(alpha > 1e-10)
+        % Armijo line search
+
+        alpha = opts.alpha0;
+        while true
             unew = u + alpha*du;
             vnew = v + alpha*dv;
             nrm = norm(vnew);
             vnew = vnew/nrm;
             unew = unew*nrm;
-            rhsnew = G(unew, vnew);
-            normrhs = norm(rhs);
-            % 'TODO: testing alpha always=1', normrhs=inf
-            if norm(rhsnew) < normrhs
-                fprintf('line search: accepted alpha=%g; stopping=%g, norm(rhs)=%g\n', alpha,norm(rhsnew),norm(rhs));
+            Gbetanew = G(unew, vnew);
+            armijo_inc = 2*opts.armijo_c * alpha * HtG'*duv;
+            if norm(Gbetanew)^2 < norm(Gbeta)^2 + armijo_inc;
+                fprintf('line search: accepted alpha=%g; ||Gnew||=%g, ||Gold||=%g, armijo_inc=%g\n', alpha,norm(Gbetanew),norm(Gbeta),armijo_inc);
                 u = unew;
                 v = vnew;
                 break
             end
-            %        fprintf('line search: rejected alpha=%g; stopping=%g, norm(rhs)=%g\n', alpha,norm(rhsnew),norm(rhs));
-            alpha = alpha / 2;
+            fprintf('line search: rejected alpha=%g; ||Gnew||=%g, ||Gold||=%g, armijo_inc=%g\n', alpha,norm(Gbetanew),norm(Gbeta),armijo_inc);
+            alpha = alpha * opts.alpha_decrease;            
+            if alpha <= 1e-10
+                fprintf('Line search failed, cannot improve the solution anymore\n');
+                break
+            end
         end
-        if alpha <= 1e-10
-            fprintf('Line search failed, cannot improve the solution anymore\n')
-        end
+
 
     end
 
@@ -246,7 +254,7 @@ AplusDelta = A + Delta;
         if isreal(A) && isreal(u) && isreal(v)
             M = eye(m+n);
             for s = 1:(m+n)
-                M(:,s) = matop(M(:,s));
+                M(:,s) = Hbetaop(M(:,s));
             end
         else
             error('Not implemented');
