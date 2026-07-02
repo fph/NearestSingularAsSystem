@@ -7,7 +7,7 @@ arguments
     opts.DirectSvd logical = (length(A)<500)
     opts.NInitialValues = 1
     opts.maxit {mustBeInteger} = 10
-    opts.tol double = 0
+    opts.tol double = 1e-14
     opts.beta double = norm(A, 'fro')  % this seems a reasonably-scaled choice
     opts.minres_tolerance = 1e-2;
     opts.renormalization = true;
@@ -79,7 +79,7 @@ for iv = 1:size(uv0, 2)
         normv2m1 = v'*v-1;
 
         rhs = [k1.*u + A*v; A'*u + k2.*v + beta*normv2m1*v];
-        if norm(rhs) / norm(A,1) < 1e-14
+        if norm(rhs) / norm(A,1) < opts.tol
             fprintf('norm(rhs)=%g\n', norm(rhs));
             break
         end
