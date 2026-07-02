@@ -78,24 +78,25 @@ for iv = 1:size(uv0, 2)
 
         normv2m1 = v'*v-1;
 
-        rhs = [k1.*u + A*v; A'*u + k2.*v + beta*normv2m1*v];
-        if norm(rhs) / norm(A,1) < opts.tol
-            fprintf('norm(rhs)=%g\n', norm(rhs));
+        Gbeta = [k1.*u + A*v; A'*u + k2.*v + beta*normv2m1*v];
+        if norm(Gbeta) / norm(A,1) < opts.tol
+            fprintf('norm(Gbeta)=%g\n', norm(Gbeta));
             break
         end
 
         fprintf('## k = %d \n', k);
         if opts.DirectSolve
             Delta = P .* u .* v';
-            fullmat = [diag(k1) A+2*Delta; (A+2*Delta)' diag(k2)+beta*(v*v'*2+normv2m1*eye(m))];
-            duv = -fullmat \ rhs;
+            Hbeta = [diag(k1) A+2*Delta; (A+2*Delta)' diag(k2)+beta*(v*v'*2+normv2m1*eye(m))];
+            duv = -Hbeta \ Gbeta;
         else
-            matop = @(uv) [
+            Hbetaop = @(uv) [
                 k1.*uv(1:m) +                                         A*uv(m+1:end) + (P * (uv(m+1:end) .* conj(v))) .* (2*u);
                 A'*uv(1:m) + (P' * (uv(1:m) .* conj(u))) .* (2*v) +   k2.*uv(m+1:end) + beta*(v*(v'*uv(m+1:end))*2 + normv2m1*uv(m+1:end));
                 ];
-            duv = -minres(matop, rhs, opts.minres_tolerance, m+n);
+            duv = -minres(Hbetaop, Gbeta, opts.minres_tolerance, m+n);
         end
+        % now duv contains -H^{-1}g
 
         if any(isnan(duv))
             fprintf('Singular matrix, cannot improve the solution anymore\n')
@@ -116,9 +117,9 @@ for iv = 1:size(uv0, 2)
             unew = unew*nrm;
             k1new = P * (vnew .* conj(vnew));
             k2new = P' * (unew .* conj(unew));
-            rhsnew = [k1new.*unew + A*vnew; A'*unew + k2new.*vnew];
-            if norm(rhsnew) < norm(rhs)
-                fprintf('line search: accepted alpha=%g; stopping=%g, norm(rhs)=%g\n', alpha,norm(rhsnew),norm(rhs));
+            Gbetanew = [k1new.*unew + A*vnew; A'*unew + k2new.*vnew];
+            if norm(Gbetanew) < norm(Gbeta)
+                fprintf('line search: accepted alpha=%g; stopping=%g, norm(rhs)=%g\n', alpha,norm(Gbetanew),norm(Gbeta));
                 u = unew;
                 v = vnew;
                 break
