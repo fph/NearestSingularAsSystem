@@ -11,6 +11,9 @@ arguments
     opts.beta double = norm(A, 'fro')  % this seems a reasonably-scaled choice
     opts.minres_tolerance = 1e-2;
     opts.renormalization = true;
+    opts.armijo_c = 1e-4;
+    opts.alpha0 = 1;
+    opts.alpha_decrease = 0.5;
 end
 
 % Compute the nearest singular matrix to A (m x n) with a specified sparsity
@@ -89,11 +92,13 @@ for iv = 1:size(uv0, 2)
             Delta = P .* u .* v';
             Hbeta = [diag(k1) A+2*Delta; (A+2*Delta)' diag(k2)+beta*(v*v'*2+normv2m1*eye(m))];
             duv = -Hbeta \ Gbeta;
+            HtG = Hbeta' * Gbeta;
         else
             Hbetaop = @(uv) [
                 k1.*uv(1:m) +                                         A*uv(m+1:end) + (P * (uv(m+1:end) .* conj(v))) .* (2*u);
                 A'*uv(1:m) + (P' * (uv(1:m) .* conj(u))) .* (2*v) +   k2.*uv(m+1:end) + beta*(v*(v'*uv(m+1:end))*2 + normv2m1*uv(m+1:end));
                 ];
+            HtG = Hbetaop(Gbeta); % H is symmetric, so we do not need to transpose
             duv = -minres(Hbetaop, Gbeta, opts.minres_tolerance, m+n);
         end
         % now duv contains -H^{-1}g
@@ -108,8 +113,8 @@ for iv = 1:size(uv0, 2)
 
         % A rudimentary line search
 
-        alpha = 1;
-        while(alpha > 1e-10)
+        alpha = opts.alpha0;
+        while true
             unew = u + alpha*du;
             vnew = v + alpha*dv;
             nrm = norm(vnew);
@@ -118,17 +123,19 @@ for iv = 1:size(uv0, 2)
             k1new = P * (vnew .* conj(vnew));
             k2new = P' * (unew .* conj(unew));
             Gbetanew = [k1new.*unew + A*vnew; A'*unew + k2new.*vnew];
-            if norm(Gbetanew) < norm(Gbeta)
-                fprintf('line search: accepted alpha=%g; stopping=%g, norm(rhs)=%g\n', alpha,norm(Gbetanew),norm(Gbeta));
+            armijo_inc = 2*opts.armijo_c * alpha * HtG'*duv;
+            if norm(Gbetanew)^2 < norm(Gbeta)^2 + armijo_inc;
+                fprintf('line search: accepted alpha=%g; ||Gnew||=%g, ||Gold||=%g, armijo_inc=%g\n', alpha,norm(Gbetanew),norm(Gbeta),armijo_inc);
                 u = unew;
                 v = vnew;
                 break
             end
-            %        fprintf('line search: rejected alpha=%g; stopping=%g, norm(rhs)=%g\n', alpha,norm(rhsnew),norm(rhs));
-            alpha = alpha / 2;
-        end
-        if alpha <= 1e-10
-            fprintf('Line search failed, cannot improve the solution anymore\n')
+            fprintf('line search: rejected alpha=%g; ||Gnew||=%g, ||Gold||=%g, armijo_inc=%g\n', alpha,norm(Gbetanew),norm(Gbeta),armijo_inc);
+            alpha = alpha * opts.alpha_decrease;
+            if alpha <= 1e-10
+                fprintf('Line search failed, cannot improve the solution anymore\n')
+                break;
+            end
         end
     end
 
